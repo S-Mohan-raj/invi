@@ -54,6 +54,8 @@ body {
   font-size: 1.3rem; backdrop-filter: blur(10px);
   transition: all 0.3s;
 }
+#music-btn.hint { animation: musicPulse 1.6s ease-in-out infinite; }
+@keyframes musicPulse { 0%,100%{box-shadow:0 0 0 0 rgba(201,148,42,0.5);} 50%{box-shadow:0 0 0 12px rgba(201,148,42,0);} }
 #music-btn:hover { background: rgba(201,148,42,0.3); transform: scale(1.1); }
 
 /* ─── HERO ─── */
@@ -631,7 +633,8 @@ footer {
 <div id="progress-bar"></div>
 
 <!-- Music Toggle -->
-<button id="music-btn" title="Toggle Music">♪</button>
+<button id="music-btn" title="Toggle Music" aria-label="Play or pause music">♪</button>
+<audio id="bg-music" src="music.mp3" loop preload="auto"></audio>
 
 <!-- ═══════════════════════════════ HERO ═══════════════════════════════ -->
 <section id="hero">
@@ -1207,36 +1210,40 @@ function updateCountdown() {
 updateCountdown();
 setInterval(updateCountdown, 1000);
 
-// ─── MUSIC TOGGLE ───
-let playing = false;
+// ─── MUSIC (autoplay + toggle) ───
 const musicBtn = document.getElementById('music-btn');
-let audio;
-musicBtn.addEventListener('click', () => {
-  if (!audio) {
-    // Using a royalty-free nasheed frequency tone as placeholder
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(220, ctx.currentTime);
-    gain.gain.setValueAtTime(0.08, ctx.currentTime);
-    osc.start();
-    audio = { ctx, osc, gain };
-    playing = true;
-    musicBtn.textContent = '♫';
-    musicBtn.style.background = 'rgba(201,148,42,0.3)';
-  } else if (playing) {
-    audio.gain.gain.setValueAtTime(0, audio.ctx.currentTime);
-    playing = false;
-    musicBtn.textContent = '♪';
-    musicBtn.style.background = 'rgba(201,148,42,0.15)';
-  } else {
-    audio.gain.gain.setValueAtTime(0.08, audio.ctx.currentTime);
-    playing = true;
-    musicBtn.textContent = '♫';
-    musicBtn.style.background = 'rgba(201,148,42,0.3)';
-  }
+const bgMusic  = document.getElementById('bg-music');
+bgMusic.volume = 0.6;
+musicBtn.classList.add('hint');
+
+function setMusicUI(on) {
+  musicBtn.classList.toggle('hint', !on);
+  musicBtn.textContent = on ? '♫' : '♪';
+  musicBtn.style.background = on ? 'rgba(201,148,42,0.3)' : 'rgba(201,148,42,0.15)';
+}
+function startMusic() {
+  return bgMusic.play().then(() => { setMusicUI(true); return true; })
+                       .catch(() => false);
+}
+
+// 1) Try to autoplay as soon as the page opens
+startMusic().then(ok => {
+  if (ok) return;
+  // 2) Browser blocked it -> start on the guest's first tap / click / key press
+  const events = ['pointerdown', 'click', 'touchend', 'keydown'];
+  const unlock = () => {
+    startMusic().then(started => {
+      if (started) events.forEach(e => window.removeEventListener(e, unlock, true));
+    });
+  };
+  events.forEach(e => window.addEventListener(e, unlock, true));
+});
+
+// Button: pause / resume
+musicBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (bgMusic.paused) { startMusic(); }
+  else { bgMusic.pause(); setMusicUI(false); }
 });
 </script>
 </body>
